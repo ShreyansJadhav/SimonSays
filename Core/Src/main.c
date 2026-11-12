@@ -227,65 +227,221 @@ int main(void)
     HAL_GPIO_Init(btnPort[i], &gpio);
   }
 
+
   #define MAX_SEQ 32
-  uint8_t sequence[MAX_SEQ];   // each entry is an LED index 0..3
+
+  uint8_t sequence[MAX_SEQ];
   int seqLen = 0;
-  // Assign a unique note to each LED
+
+  // Each LED gets a unique note
   int ledNotes[4] = {0, 2, 4, 8};
 
   buzzerDisable(&buzzer1);
 
   while (1)
   {
-    // 1) Grow the pattern by one random LED (earlier entries are never changed)
-    if (seqLen < MAX_SEQ)
-    {
-      uint32_t r;
-      if (HAL_RNG_GenerateRandomNumber(&hrng, &r) == HAL_OK)
+      // Welcome Screen
+      seqLen = 0;
+
+      Display_fillScreen(ST77XX_MAGENTA);
+      Display_setTextColor(ST7735_BLACK);
+      Display_setTextSize(1, 2);
+      Display_setCursor(15, 40);
+      Display_print("Welcome to Simon Says!");
+      Display_setCursor(10, 70);
+      Display_print("Press Select");
+
+      // click the joystick
+      while (TFTShield18_readButtons() & TFTSHIELD_BUTTON_1)
       {
-        sequence[seqLen++] = r % 4;
+          HAL_Delay(10);
       }
-    }
+      while (!(TFTShield18_readButtons() & TFTSHIELD_BUTTON_1))
+      {
+          HAL_Delay(10);
+      }
 
-    // 2) Play the whole pattern from the start
-    HAL_Delay(500);
+      // COUNTDOWN
+      for (int count = 3; count > 0; count--)
+      {
+          Display_fillScreen(ST77XX_BLACK);
+          Display_setTextColor(ST7735_WHITE);
+          Display_setCursor(65, 55);
+          Display_setTextSize(2, 3);
 
-  for (int i = 0; i < seqLen; i++)
-  {
-      uint8_t led = sequence[i];
+          // turn int into str for display
+          char countText[2];
+          countText[0] = '0' + count;
+          countText[1] = '\0';
+          Display_print(countText);
+          DWT_delayMs(1000);
+      }
 
-      // Set the note for this LED
-      buzzerSetNote(&buzzer1, chromaticScale[ledNotes[led]], 1);
+      bool gameOver = false;
 
-      // Turn on LED and buzzer together
-      HAL_GPIO_WritePin(ledPort[led], ledPin[led], GPIO_PIN_SET);
-      buzzerEnable(&buzzer1);
 
-      HAL_Delay(400);
+      // Main Loop
+      while (!gameOver)
+      {
+          // 1. Add one random LED to sequence
+          if (seqLen < MAX_SEQ)
+          {
+              uint32_t r;
 
-      // Turn off LED and buzzer together
-      HAL_GPIO_WritePin(ledPort[led], ledPin[led], GPIO_PIN_RESET);
+              HAL_RNG_GenerateRandomNumber(&hrng, &r);
+
+              sequence[seqLen++] = r % 4;
+          }
+
+          // 2. Show current level
+          Display_fillScreen(ST77XX_BLACK);
+          Display_setTextColor(ST7735_WHITE);
+          Display_setTextSize(1, 2);
+          Display_setCursor(10, 20);
+          Display_print("Watch sequence");
+
+          HAL_Delay(700);
+
+          // 3. Play LED sequence with notes
+          for (int i = 0; i < seqLen; i++)
+          {
+              uint8_t led = sequence[i];
+
+              buzzerSetNote(&buzzer1,
+                            chromaticScale[ledNotes[led]], 1);
+
+              HAL_GPIO_WritePin(ledPort[led],
+                                ledPin[led], GPIO_PIN_SET);
+
+              buzzerEnable(&buzzer1);
+
+              HAL_Delay(400);
+
+              HAL_GPIO_WritePin(ledPort[led],
+                                ledPin[led], GPIO_PIN_RESET);
+
+              buzzerDisable(&buzzer1);
+
+              HAL_Delay(200);
+          }
+
+          // 4. Wait for player inputs
+          Display_fillScreen(ST77XX_BLACK);
+          Display_setTextColor(ST7735_WHITE);
+          Display_setTextSize(1, 2);
+          Display_setCursor(10, 20);
+          Display_print("Your turn!");
+
+          int inputIndex = 0;
+
+          while (inputIndex < seqLen && !gameOver)
+          {
+              int pressed = readButton(btnPort, btnPin);
+
+              // No button pressed yet
+              if (pressed == -1)
+              {
+                  HAL_Delay(10);
+                  continue;
+              }
+
+              // Light up LED and play its note
+              HAL_GPIO_WritePin(ledPort[pressed],
+                                ledPin[pressed], GPIO_PIN_SET);
+
+              buzzerSetNote(&buzzer1,
+                            chromaticScale[ledNotes[pressed]], 1);
+
+              buzzerEnable(&buzzer1);
+
+              // Wait for button release
+              while (HAL_GPIO_ReadPin(btnPort[pressed],
+                                      btnPin[pressed]) == GPIO_PIN_RESET)
+              {
+                  HAL_Delay(10);
+              }
+
+              HAL_Delay(20);
+
+              HAL_GPIO_WritePin(ledPort[pressed],
+                                ledPin[pressed], GPIO_PIN_RESET);
+
+              buzzerDisable(&buzzer1);
+
+              // 5. Check player's input
+              if (pressed == sequence[inputIndex])
+              {
+                  inputIndex++;
+              }
+              else
+              {
+                  gameOver = true;
+              }
+          }
+
+          // 6. Correct sequence completed
+          if (!gameOver)
+          {
+              Display_fillScreen(ST77XX_GREEN);
+              Display_setTextColor(ST7735_BLACK);
+              Display_setCursor(15, 55);
+              Display_print("Correct!");
+
+              HAL_Delay(1000);
+
+              // If max level reached, start over
+              if (seqLen == MAX_SEQ)
+              {
+                  gameOver = true;
+              }
+          }
+      }
+
+    
+      // GAME OVER
       buzzerDisable(&buzzer1);
 
-      HAL_Delay(200);
+      Display_fillScreen(ST77XX_RED);
+      Display_setTextColor(ST7735_WHITE);
+      Display_setTextSize(1, 2);
+      Display_setCursor(25, 55);
+      Display_print("GAME OVER!");
+
+      // Rapid random LED flashes + notes
+      for (int i = 0; i < 12; i++)
+      {
+          uint32_t r;
+
+          if (HAL_RNG_GenerateRandomNumber(&hrng, &r) != HAL_OK)
+          {
+              Error_Handler();
+          }
+
+          uint8_t led = r % 4;
+
+          buzzerSetNote(&buzzer1,
+                        chromaticScale[ledNotes[led]], 1);
+
+          HAL_GPIO_WritePin(ledPort[led],
+                            ledPin[led], GPIO_PIN_SET);
+
+          buzzerEnable(&buzzer1);
+
+          HAL_Delay(100);
+
+          HAL_GPIO_WritePin(ledPort[led],
+                            ledPin[led], GPIO_PIN_RESET);
+
+          buzzerDisable(&buzzer1);
+
+          HAL_Delay(50);
+      }
+
+      HAL_Delay(1500);
+
+      // Outer loop returns to welcome screen
   }
 
-    // 3) Wait for BTN1 press, then release, before the next round
-  while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) != GPIO_PIN_RESET) {
-      HAL_Delay(10);
-  }
-
-  HAL_Delay(20);
-
-  while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) == GPIO_PIN_RESET) {
-      HAL_Delay(10);
-  }
-
-  HAL_Delay(20);
-
-
-  }
-  /* ---- END PHASE 1 TEST ---- */
   
 
   int32_t currNoteNum = 0;
@@ -409,6 +565,26 @@ static void MX_GPDMA1_Init(void)
 {
 
   /* USER CODE BEGIN GPDMA1_Init 0 */
+
+  // Returns the index of the pressed button (0-3).
+// Returns -1 if no button is pressed.
+int readButton(GPIO_TypeDef *btnPort[], uint16_t btnPin[])
+{
+    for (int i = 0; i < 4; i++)
+    {
+        if (HAL_GPIO_ReadPin(btnPort[i], btnPin[i]) == GPIO_PIN_RESET)
+        {
+            HAL_Delay(20); // Debounce
+
+            if (HAL_GPIO_ReadPin(btnPort[i], btnPin[i]) == GPIO_PIN_RESET)
+            {
+                return i;
+            }
+        }
+    }
+
+    return -1;
+}
 
   /* USER CODE END GPDMA1_Init 0 */
 
