@@ -117,7 +117,7 @@ static void MX_TIM1_Init(void);
     // Returns true if the joystick SELECT button is pressed
   bool selectPressed(void)
   {
-      return !(TFTShield18_readButtons() & TFTSHIELD_BUTTON_SELECT);
+      return !(TFTShield18_readButtons() & TFTSHIELD_BUTTON_IN);
   }
 
   // Delays while checking SELECT every 10 milliseconds
