@@ -231,7 +231,7 @@ int main(void)
   uint8_t sequence[MAX_SEQ];   // each entry is an LED index 0..3
   int seqLen = 0;
   // Assign a unique note to each LED
-  int ledNotes[4] = {0, 4, 7, 12};
+  int ledNotes[4] = {0, 2, 4, 8};
 
   buzzerDisable(&buzzer1);
 
