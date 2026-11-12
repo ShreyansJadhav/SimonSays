@@ -422,7 +422,7 @@ int main(void)
 
           // 2. Show current level
           drawSimonBoard();
-          Display_fillScreen(ST77XX_BLACK);
+
           Display_setTextColor(ST7735_WHITE);
           Display_setTextSize(1, 2);
           Display_setCursor(10, 20);
