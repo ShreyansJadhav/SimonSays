@@ -138,6 +138,63 @@ static void MX_TIM1_Init(void);
 
       return selectPressed();
   }
+    // RGB565 colors for the TFT display
+  #define DARK_RED     0x8000
+  #define BRIGHT_RED   0xF800
+
+  #define DARK_GREEN   0x0400
+  #define BRIGHT_GREEN 0x07E0
+
+  #define DARK_BLUE    0x0010
+  #define BRIGHT_BLUE  0x001F
+
+  #define DARK_YELLOW  0x8400
+  #define BRIGHT_YELLOW 0xFFE0
+
+  // Draws one LED circle on the TFT
+  void drawSimonLED(int ledIndex, bool lit)
+  {
+      uint16_t darkColors[4] = {
+          DARK_RED, DARK_GREEN, DARK_BLUE, DARK_YELLOW
+      };
+
+      uint16_t brightColors[4] = {
+          BRIGHT_RED, BRIGHT_GREEN, BRIGHT_BLUE, BRIGHT_YELLOW
+      };
+
+      if (ledIndex < 0 || ledIndex >= 4)
+      {
+          return;
+      }
+
+      // Four evenly spaced circles across the 160px screen
+      int x = 20 + ledIndex * 40;
+      int y = 75;
+      int radius = 14;
+
+      uint16_t color = lit
+          ? brightColors[ledIndex]
+          : darkColors[ledIndex];
+
+      Display_fillCircle(x, y, radius, color);
+  }
+
+  // Draws the initial Simon Says board
+  void drawSimonBoard(void)
+  {
+      Display_fillScreen(ST77XX_BLACK);
+
+      Display_setTextColor(ST7735_WHITE);
+      Display_setTextSize(1, 2);
+      Display_setCursor(30, 15);
+      Display_print("SIMON SAYS");
+
+      // All four circles start unlit
+      for (int i = 0; i < 4; i++)
+      {
+          drawSimonLED(i, false);
+      }
+  }
 
 /* USER CODE END 0 */
 
@@ -333,6 +390,7 @@ int main(void)
               break;
           }
       }
+      drawSimonBoard();
 
       if (restartRequested)
       {
@@ -363,6 +421,7 @@ int main(void)
           }
 
           // 2. Show current level
+          drawSimonBoard();
           Display_fillScreen(ST77XX_BLACK);
           Display_setTextColor(ST7735_WHITE);
           Display_setTextSize(1, 2);
@@ -375,9 +434,7 @@ int main(void)
               break;
           }
 
-          // ==========================
           // PLAY LED SEQUENCE
-          // ==========================
           for (int i = 0; i < seqLen; i++)
           {
               uint8_t led = sequence[i];
@@ -388,6 +445,8 @@ int main(void)
               HAL_GPIO_WritePin(ledPort[led],
                                 ledPin[led], GPIO_PIN_SET);
 
+              drawSimonLED(led, true);
+
               buzzerEnable(&buzzer1);
 
               // LED ON for 400 ms
@@ -396,6 +455,8 @@ int main(void)
               // Always turn LED and buzzer off
               HAL_GPIO_WritePin(ledPort[led],
                                 ledPin[led], GPIO_PIN_RESET);
+
+              drawSimonLED(led, false);
 
               buzzerDisable(&buzzer1);
 
@@ -418,9 +479,9 @@ int main(void)
               break;
           }
 
-          // ==========================
           // PLAYER INPUT
-          // ==========================
+          drawSimonBoard();
+
           Display_fillScreen(ST77XX_BLACK);
           Display_setTextColor(ST7735_WHITE);
           Display_setTextSize(1, 2);
@@ -451,6 +512,8 @@ int main(void)
               HAL_GPIO_WritePin(ledPort[pressed],
                                 ledPin[pressed], GPIO_PIN_SET);
 
+              drawSimonLED(pressed, true);
+
               buzzerSetNote(&buzzer1,
                             chromaticScale[ledNotes[pressed]], 1);
 
@@ -472,6 +535,8 @@ int main(void)
               // Always turn off LED and buzzer
               HAL_GPIO_WritePin(ledPort[pressed],
                                 ledPin[pressed], GPIO_PIN_RESET);
+
+              drawSimonLED(pressed, false);
 
               buzzerDisable(&buzzer1);
 
@@ -503,9 +568,7 @@ int main(void)
               break;
           }
 
-          // ==========================
           // CORRECT SEQUENCE
-          // ==========================
           if (!gameOver)
           {
               Display_fillScreen(ST77XX_GREEN);
@@ -528,9 +591,7 @@ int main(void)
           }
       }
 
-      // ==========================
       // SELECT RESTART HANDLING
-      // ==========================
       if (restartRequested)
       {
           buzzerDisable(&buzzer1);
@@ -551,15 +612,13 @@ int main(void)
           continue; // Return to welcome
       }
 
-      // ==========================
       // GAME OVER
-      // ==========================
       buzzerDisable(&buzzer1);
 
-      Display_fillScreen(ST77XX_RED);
+      drawSimonBoard();
       Display_setTextColor(ST7735_WHITE);
       Display_setTextSize(1, 2);
-      Display_setCursor(25, 55);
+      Display_setCursor(25, 105);
       Display_print("GAME OVER!");
 
       // Rapid random LED flashes + notes
@@ -586,6 +645,8 @@ int main(void)
           HAL_GPIO_WritePin(ledPort[led],
                             ledPin[led], GPIO_PIN_SET);
 
+          drawSimonLED(led, true);
+
           buzzerEnable(&buzzer1);
 
           // Flash for 100 ms, checking SELECT
@@ -593,6 +654,8 @@ int main(void)
 
           HAL_GPIO_WritePin(ledPort[led],
                             ledPin[led], GPIO_PIN_RESET);
+
+          drawSimonLED(led, false);
 
           buzzerDisable(&buzzer1);
 
@@ -624,56 +687,6 @@ int main(void)
       // Outer loop returns to welcome screen
   }
 
-
-  
-
-  int32_t currNoteNum = 0;
-  int32_t currOctave = 1;
-
-  buzzerSetNote(&buzzer1, chromaticScale[currNoteNum], currOctave);
-  buzzerDisable(&buzzer1);
-
-  uint32_t lastButtonState = TFTSHIELD_BUTTON_ALL;
-
-  while (1)
-  {
-    /* Place application loop code here */
-
-    uint32_t buttons = TFTShield18_readButtons();
-
-    if(lastButtonState != buttons) {
-      if(!(buttons & TFTSHIELD_BUTTON_1)) {
-        if(buzzer1.currBuzzerState) buzzerDisable(&buzzer1);
-        else buzzerEnable(&buzzer1);
-      } else if(!(buttons & TFTSHIELD_BUTTON_UP)) {
-        currNoteNum++;
-        if (currNoteNum >= NUM_NOTES) {
-          currNoteNum %= NUM_NOTES;
-          currOctave++;
-        }
-
-        printf("Current Note Num: %d, Current Octave: %d\n", currNoteNum, currOctave);
-
-        buzzerSetNote(&buzzer1, chromaticScale[currNoteNum], currOctave);
-      } else if (!(buttons & TFTSHIELD_BUTTON_DOWN)) {
-        currNoteNum--;
-        if (currNoteNum < 0) {
-          currNoteNum = NUM_NOTES + currNoteNum;
-          currOctave--;
-        }
-
-        printf("Current Note Num: %d, Current Octave: %d\n", currNoteNum, currOctave);
-
-        buzzerSetNote(&buzzer1, chromaticScale[currNoteNum], currOctave);
-      }
-    }
-
-    lastButtonState = buttons;
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  }
   /* USER CODE END 3 */
 }
 
