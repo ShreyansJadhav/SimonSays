@@ -196,6 +196,18 @@ static void MX_TIM1_Init(void);
       }
   }
 
+  void drawLevel(int level)
+{
+    char levelText[12];
+
+    snprintf(levelText, sizeof(levelText), "Lvl: %d", level);
+
+    Display_setTextColor(ST7735_WHITE);
+    Display_setTextSize(1, 1);
+    Display_setCursor(115, 5);
+    Display_print(levelText);
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -422,6 +434,7 @@ int main(void)
 
           // 2. Show current level
           drawSimonBoard();
+          drawLevel(seqLen);
 
           if (delayWithSelect(700))
           {
@@ -429,7 +442,7 @@ int main(void)
               break;
           }
 
-
+          
           Display_setTextColor(ST7735_WHITE);
           Display_setTextSize(1, 2);
           Display_setCursor(10, 20);
@@ -482,6 +495,7 @@ int main(void)
 
           // PLAYER INPUT
           drawSimonBoard();
+          drawLevel(seqLen);
 
           Display_setTextColor(ST7735_WHITE);
           Display_setTextSize(1, 2);
