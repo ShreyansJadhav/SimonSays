@@ -187,7 +187,7 @@ static void MX_TIM1_Init(void);
       Display_setTextColor(ST7735_WHITE);
       Display_setTextSize(1, 2);
       Display_setCursor(30, 15);
-      Display_print("SIMON SAYS");
+
 
       // All four circles start unlit
       for (int i = 0; i < 4; i++)
@@ -441,6 +441,10 @@ int main(void)
                                 ledPin[led], GPIO_PIN_SET);
 
               drawSimonLED(led, true);
+              Display_setTextColor(ST7735_WHITE);
+              Display_setTextSize(1, 2);
+              Display_setCursor(30, 15);
+              Display_print("Watch sequence");
 
               buzzerEnable(&buzzer1);
 
