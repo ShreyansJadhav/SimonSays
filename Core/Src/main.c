@@ -230,10 +230,9 @@ int main(void)
   #define MAX_SEQ 32
   uint8_t sequence[MAX_SEQ];   // each entry is an LED index 0..3
   int seqLen = 0;
-  buzzerSetNote(&buzzer1, chromaticScale[0], 1);
-  buzzerDisable(&buzzer1);
-  buzzerEnable(&buzzer1);
-  HAL_Delay(1000);
+  // Assign a unique note to each LED
+  int ledNotes[4] = {0, 4, 7, 12};
+
   buzzerDisable(&buzzer1);
 
   while (1)
@@ -250,22 +249,41 @@ int main(void)
 
     // 2) Play the whole pattern from the start
     HAL_Delay(500);
-    for (int i = 0; i < seqLen; i++)
-    {
+
+  for (int i = 0; i < seqLen; i++)
+  {
       uint8_t led = sequence[i];
+
+      // Set the note for this LED
+      buzzerSetNote(&buzzer1, chromaticScale[ledNotes[led]], 1);
+
+      // Turn on LED and buzzer together
       HAL_GPIO_WritePin(ledPort[led], ledPin[led], GPIO_PIN_SET);
+      buzzerEnable(&buzzer1);
+
       HAL_Delay(400);
+
+      // Turn off LED and buzzer together
       HAL_GPIO_WritePin(ledPort[led], ledPin[led], GPIO_PIN_RESET);
+      buzzerDisable(&buzzer1);
+
       HAL_Delay(200);
-    }
+  }
 
     // 3) Wait for BTN1 press, then release, before the next round
-    while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) != GPIO_PIN_RESET) { HAL_Delay(10); }
-    buzzerEnable(&buzzer1);          // pressed: start note
-    HAL_Delay(20);                   // debounce
-    while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) == GPIO_PIN_RESET) { HAL_Delay(10); }
-    buzzerDisable(&buzzer1);         // released: stop note
-    HAL_Delay(20);
+  while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) != GPIO_PIN_RESET) {
+      HAL_Delay(10);
+  }
+
+  HAL_Delay(20);
+
+  while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) == GPIO_PIN_RESET) {
+      HAL_Delay(10);
+  }
+
+  HAL_Delay(20);
+
+
   }
   /* ---- END PHASE 1 TEST ---- */
   
