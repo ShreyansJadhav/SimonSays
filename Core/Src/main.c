@@ -198,7 +198,69 @@ int main(void)
   Display_print("Welcome to Simon Says!");
 
 
+    /* ---- PHASE 1 TEST: pattern building ---- */
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
 
+  GPIO_TypeDef *ledPort[4] = { GPIOC,       GPIOC,       GPIOC,       GPIOB };
+  uint16_t      ledPin[4]  = { GPIO_PIN_2,  GPIO_PIN_3,  GPIO_PIN_5,  GPIO_PIN_12 };
+  GPIO_TypeDef *btnPort[4] = { GPIOB,       GPIOC,       GPIOB,       GPIOC };
+  uint16_t      btnPin[4]  = { GPIO_PIN_13, GPIO_PIN_12, GPIO_PIN_8,  GPIO_PIN_11 };
+
+  GPIO_InitTypeDef gpio = {0};
+  gpio.Speed = GPIO_SPEED_FREQ_LOW;
+
+  gpio.Mode = GPIO_MODE_OUTPUT_PP;
+  gpio.Pull = GPIO_NOPULL;
+  for (int i = 0; i < 4; i++)
+  {
+    gpio.Pin = ledPin[i];
+    HAL_GPIO_Init(ledPort[i], &gpio);
+    HAL_GPIO_WritePin(ledPort[i], ledPin[i], GPIO_PIN_RESET);
+  }
+
+  gpio.Mode = GPIO_MODE_INPUT;
+  gpio.Pull = GPIO_PULLUP;
+  for (int i = 0; i < 4; i++)
+  {
+    gpio.Pin = btnPin[i];
+    HAL_GPIO_Init(btnPort[i], &gpio);
+  }
+
+  #define MAX_SEQ 32
+  uint8_t sequence[MAX_SEQ];   // each entry is an LED index 0..3
+  int seqLen = 0;
+
+  while (1)
+  {
+    // 1) Grow the pattern by one random LED (earlier entries are never changed)
+    if (seqLen < MAX_SEQ)
+    {
+      uint32_t r;
+      if (HAL_RNG_GenerateRandomNumber(&hrng, &r) == HAL_OK)
+      {
+        sequence[seqLen++] = r % 4;
+      }
+    }
+
+    // 2) Play the whole pattern from the start
+    HAL_Delay(500);
+    for (int i = 0; i < seqLen; i++)
+    {
+      uint8_t led = sequence[i];
+      HAL_GPIO_WritePin(ledPort[led], ledPin[led], GPIO_PIN_SET);
+      HAL_Delay(400);
+      HAL_GPIO_WritePin(ledPort[led], ledPin[led], GPIO_PIN_RESET);
+      HAL_Delay(200);
+    }
+
+    // 3) Wait for BTN1 press, then release, before the next round
+    while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) != GPIO_PIN_RESET) { HAL_Delay(10); }
+    HAL_Delay(20);   // debounce
+    while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) == GPIO_PIN_RESET) { HAL_Delay(10); }
+    HAL_Delay(20);
+  }
+  /* ---- END PHASE 1 TEST ---- */
   
 
   int32_t currNoteNum = 0;
