@@ -93,6 +93,7 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+  #include <stdbool.h>
   // Returns the index of the pressed button (0-3).
   // Returns -1 if no button is pressed.
   int readButton(GPIO_TypeDef *btnPort[], uint16_t btnPin[])
@@ -111,6 +112,31 @@ static void MX_TIM1_Init(void);
       }
 
       return -1;
+  }
+
+    // Returns true if the joystick SELECT button is pressed
+  bool selectPressed(void)
+  {
+      return !(TFTShield18_readButtons() & TFTSHIELD_BUTTON_SELECT);
+  }
+
+  // Delays while checking SELECT every 10 milliseconds
+  // Returns true if SELECT was pressed during the delay
+  bool delayWithSelect(uint32_t ms)
+  {
+      uint32_t start = HAL_GetTick();
+
+      while ((uint32_t)(HAL_GetTick() - start) < ms)
+      {
+          if (selectPressed())
+          {
+              return true;
+          }
+
+          HAL_Delay(10);
+      }
+
+      return selectPressed();
   }
 
 /* USER CODE END 0 */
@@ -255,11 +281,12 @@ int main(void)
   // Each LED gets a unique note
   int ledNotes[4] = {0, 2, 4, 8};
 
+
   buzzerDisable(&buzzer1);
 
   while (1)
   {
-      // Welcome Screen
+      // WELCOME SCREEN
       seqLen = 0;
 
       Display_fillScreen(ST77XX_MAGENTA);
@@ -270,15 +297,20 @@ int main(void)
       Display_setCursor(10, 70);
       Display_print("Press Select");
 
-      // click the joystick
-      while (TFTShield18_readButtons() & TFTSHIELD_BUTTON_1)
+      // Wait for joystick SELECT press
+      while (!selectPressed())
       {
           HAL_Delay(10);
       }
-      while (!(TFTShield18_readButtons() & TFTSHIELD_BUTTON_1))
+
+      // Wait for SELECT release before starting
+      while (selectPressed())
       {
           HAL_Delay(10);
       }
+
+      bool restartRequested = false;
+      bool gameOver = false;
 
       // COUNTDOWN
       for (int count = 3; count > 0; count--)
@@ -288,26 +320,44 @@ int main(void)
           Display_setCursor(65, 55);
           Display_setTextSize(2, 3);
 
-          // turn int into str for display
           char countText[2];
           countText[0] = '0' + count;
           countText[1] = '\0';
+
           Display_print(countText);
-          DWT_delayMs(1000);
+
+          // SELECT cancels the countdown
+          if (delayWithSelect(1000))
+          {
+              restartRequested = true;
+              break;
+          }
       }
 
-      bool gameOver = false;
+      if (restartRequested)
+      {
+          while (selectPressed())
+          {
+              HAL_Delay(10);
+          }
+
+          continue; // Return to welcome
+      }
 
 
-      // Main Loop
-      while (!gameOver)
+      // MAIN GAME LOOP
+
+      while (!gameOver && !restartRequested)
       {
           // 1. Add one random LED to sequence
           if (seqLen < MAX_SEQ)
           {
               uint32_t r;
 
-              HAL_RNG_GenerateRandomNumber(&hrng, &r);
+              if (HAL_RNG_GenerateRandomNumber(&hrng, &r) != HAL_OK)
+              {
+                  Error_Handler();
+              }
 
               sequence[seqLen++] = r % 4;
           }
@@ -319,9 +369,15 @@ int main(void)
           Display_setCursor(10, 20);
           Display_print("Watch sequence");
 
-          HAL_Delay(700);
+          if (delayWithSelect(700))
+          {
+              restartRequested = true;
+              break;
+          }
 
-          // 3. Play LED sequence with notes
+          // ==========================
+          // PLAY LED SEQUENCE
+          // ==========================
           for (int i = 0; i < seqLen; i++)
           {
               uint8_t led = sequence[i];
@@ -334,17 +390,37 @@ int main(void)
 
               buzzerEnable(&buzzer1);
 
-              HAL_Delay(400);
+              // LED ON for 400 ms
+              bool cancelled = delayWithSelect(400);
 
+              // Always turn LED and buzzer off
               HAL_GPIO_WritePin(ledPort[led],
                                 ledPin[led], GPIO_PIN_RESET);
 
               buzzerDisable(&buzzer1);
 
-              HAL_Delay(200);
+              if (cancelled)
+              {
+                  restartRequested = true;
+                  break;
+              }
+
+              // Pause between notes
+              if (delayWithSelect(200))
+              {
+                  restartRequested = true;
+                  break;
+              }
           }
 
-          // 4. Wait for player inputs
+          if (restartRequested)
+          {
+              break;
+          }
+
+          // ==========================
+          // PLAYER INPUT
+          // ==========================
           Display_fillScreen(ST77XX_BLACK);
           Display_setTextColor(ST7735_WHITE);
           Display_setTextSize(1, 2);
@@ -355,6 +431,13 @@ int main(void)
 
           while (inputIndex < seqLen && !gameOver)
           {
+              // SELECT returns to welcome
+              if (selectPressed())
+              {
+                  restartRequested = true;
+                  break;
+              }
+
               int pressed = readButton(btnPort, btnPin);
 
               // No button pressed yet
@@ -364,7 +447,7 @@ int main(void)
                   continue;
               }
 
-              // Light up LED and play its note
+              // Light LED and play corresponding note
               HAL_GPIO_WritePin(ledPort[pressed],
                                 ledPin[pressed], GPIO_PIN_SET);
 
@@ -373,21 +456,38 @@ int main(void)
 
               buzzerEnable(&buzzer1);
 
-              // Wait for button release
+              // Wait for physical button release
               while (HAL_GPIO_ReadPin(btnPort[pressed],
                                       btnPin[pressed]) == GPIO_PIN_RESET)
               {
+                  if (selectPressed())
+                  {
+                      restartRequested = true;
+                      break;
+                  }
+
                   HAL_Delay(10);
               }
 
-              HAL_Delay(20);
-
+              // Always turn off LED and buzzer
               HAL_GPIO_WritePin(ledPort[pressed],
                                 ledPin[pressed], GPIO_PIN_RESET);
 
               buzzerDisable(&buzzer1);
 
-              // 5. Check player's input
+              if (restartRequested)
+              {
+                  break;
+              }
+
+              // Debounce release, still checking SELECT
+              if (delayWithSelect(20))
+              {
+                  restartRequested = true;
+                  break;
+              }
+
+              // Check player's input
               if (pressed == sequence[inputIndex])
               {
                   inputIndex++;
@@ -398,17 +498,29 @@ int main(void)
               }
           }
 
-          // 6. Correct sequence completed
+          if (restartRequested)
+          {
+              break;
+          }
+
+          // ==========================
+          // CORRECT SEQUENCE
+          // ==========================
           if (!gameOver)
           {
               Display_fillScreen(ST77XX_GREEN);
               Display_setTextColor(ST7735_BLACK);
+              Display_setTextSize(1, 2);
               Display_setCursor(15, 55);
               Display_print("Correct!");
 
-              HAL_Delay(1000);
+              if (delayWithSelect(1000))
+              {
+                  restartRequested = true;
+                  break;
+              }
 
-              // If max level reached, start over
+              // Max sequence completed
               if (seqLen == MAX_SEQ)
               {
                   gameOver = true;
@@ -416,8 +528,32 @@ int main(void)
           }
       }
 
-    
+      // ==========================
+      // SELECT RESTART HANDLING
+      // ==========================
+      if (restartRequested)
+      {
+          buzzerDisable(&buzzer1);
+
+          // Turn off all LEDs
+          for (int i = 0; i < 4; i++)
+          {
+              HAL_GPIO_WritePin(ledPort[i],
+                                ledPin[i], GPIO_PIN_RESET);
+          }
+
+          // Wait for SELECT release
+          while (selectPressed())
+          {
+              HAL_Delay(10);
+          }
+
+          continue; // Return to welcome
+      }
+
+      // ==========================
       // GAME OVER
+      // ==========================
       buzzerDisable(&buzzer1);
 
       Display_fillScreen(ST77XX_RED);
@@ -429,6 +565,12 @@ int main(void)
       // Rapid random LED flashes + notes
       for (int i = 0; i < 12; i++)
       {
+          if (selectPressed())
+          {
+              restartRequested = true;
+              break;
+          }
+
           uint32_t r;
 
           if (HAL_RNG_GenerateRandomNumber(&hrng, &r) != HAL_OK)
@@ -446,20 +588,42 @@ int main(void)
 
           buzzerEnable(&buzzer1);
 
-          HAL_Delay(100);
+          // Flash for 100 ms, checking SELECT
+          bool cancelled = delayWithSelect(100);
 
           HAL_GPIO_WritePin(ledPort[led],
                             ledPin[led], GPIO_PIN_RESET);
 
           buzzerDisable(&buzzer1);
 
-          HAL_Delay(50);
+          if (cancelled)
+          {
+              restartRequested = true;
+              break;
+          }
+
+          if (delayWithSelect(50))
+          {
+              restartRequested = true;
+              break;
+          }
       }
 
-      HAL_Delay(1500);
+      // Wait on Game Over screen, unless SELECT was pressed
+      if (!restartRequested)
+      {
+          delayWithSelect(1500);
+      }
+
+      // Ensure SELECT is released before returning
+      while (selectPressed())
+      {
+          HAL_Delay(10);
+      }
 
       // Outer loop returns to welcome screen
   }
+
 
   
 
