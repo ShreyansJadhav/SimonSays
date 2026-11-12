@@ -429,6 +429,12 @@ int main(void)
               break;
           }
 
+
+          Display_setTextColor(ST7735_WHITE);
+          Display_setTextSize(1, 2);
+          Display_setCursor(10, 20);
+          Display_print("Watch sequence");
+
           // PLAY LED SEQUENCE
           for (int i = 0; i < seqLen; i++)
           {
@@ -441,10 +447,6 @@ int main(void)
                                 ledPin[led], GPIO_PIN_SET);
 
               drawSimonLED(led, true);
-              Display_setTextColor(ST7735_WHITE);
-              Display_setTextSize(1, 2);
-              Display_setCursor(30, 15);
-              Display_print("Watch sequence");
 
               buzzerEnable(&buzzer1);
 
