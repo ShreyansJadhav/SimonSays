@@ -94,6 +94,7 @@ static void MX_TIM1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
   #include <stdbool.h>
+  #include <stdio.h>
   // Returns the index of the pressed button (0-3).
   // Returns -1 if no button is pressed.
   int readButton(GPIO_TypeDef *btnPort[], uint16_t btnPin[])
@@ -197,16 +198,16 @@ static void MX_TIM1_Init(void);
   }
 
   void drawLevel(int level)
-{
+  {
     char levelText[12];
 
     snprintf(levelText, sizeof(levelText), "Lvl: %d", level);
 
     Display_setTextColor(ST7735_WHITE);
     Display_setTextSize(1, 1);
-    Display_setCursor(115, 5);
+    Display_setCursor(115, 15);
     Display_print(levelText);
-}
+  }
 
 /* USER CODE END 0 */
 
