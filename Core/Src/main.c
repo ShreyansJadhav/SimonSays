@@ -93,6 +93,25 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+  // Returns the index of the pressed button (0-3).
+  // Returns -1 if no button is pressed.
+  int readButton(GPIO_TypeDef *btnPort[], uint16_t btnPin[])
+  {
+      for (int i = 0; i < 4; i++)
+      {
+          if (HAL_GPIO_ReadPin(btnPort[i], btnPin[i]) == GPIO_PIN_RESET)
+          {
+              HAL_Delay(20); // Debounce
+
+              if (HAL_GPIO_ReadPin(btnPort[i], btnPin[i]) == GPIO_PIN_RESET)
+              {
+                  return i;
+              }
+          }
+      }
+
+      return -1;
+  }
 
 /* USER CODE END 0 */
 
@@ -565,27 +584,6 @@ static void MX_GPDMA1_Init(void)
 {
 
   /* USER CODE BEGIN GPDMA1_Init 0 */
-
-  // Returns the index of the pressed button (0-3).
-// Returns -1 if no button is pressed.
-int readButton(GPIO_TypeDef *btnPort[], uint16_t btnPin[])
-{
-    for (int i = 0; i < 4; i++)
-    {
-        if (HAL_GPIO_ReadPin(btnPort[i], btnPin[i]) == GPIO_PIN_RESET)
-        {
-            HAL_Delay(20); // Debounce
-
-            if (HAL_GPIO_ReadPin(btnPort[i], btnPin[i]) == GPIO_PIN_RESET)
-            {
-                return i;
-            }
-        }
-    }
-
-    return -1;
-}
-
   /* USER CODE END GPDMA1_Init 0 */
 
   /* Peripheral clock enable */
