@@ -230,6 +230,11 @@ int main(void)
   #define MAX_SEQ 32
   uint8_t sequence[MAX_SEQ];   // each entry is an LED index 0..3
   int seqLen = 0;
+  buzzerSetNote(&buzzer1, chromaticScale[0], 1);
+  buzzerDisable(&buzzer1);
+  buzzerEnable(&buzzer1);
+  HAL_Delay(1000);
+  buzzerDisable(&buzzer1);
 
   while (1)
   {
@@ -256,8 +261,10 @@ int main(void)
 
     // 3) Wait for BTN1 press, then release, before the next round
     while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) != GPIO_PIN_RESET) { HAL_Delay(10); }
-    HAL_Delay(20);   // debounce
+    buzzerEnable(&buzzer1);          // pressed: start note
+    HAL_Delay(20);                   // debounce
     while (HAL_GPIO_ReadPin(btnPort[0], btnPin[0]) == GPIO_PIN_RESET) { HAL_Delay(10); }
+    buzzerDisable(&buzzer1);         // released: stop note
     HAL_Delay(20);
   }
   /* ---- END PHASE 1 TEST ---- */
