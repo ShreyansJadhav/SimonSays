@@ -205,7 +205,7 @@ static void MX_TIM1_Init(void);
 
     Display_setTextColor(ST7735_WHITE);
     Display_setTextSize(1, 1);
-    Display_setCursor(115, 15);
+    Display_setCursor(115, 20);
     Display_print(levelText);
   }
 
