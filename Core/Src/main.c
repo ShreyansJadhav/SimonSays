@@ -209,6 +209,56 @@ static void MX_TIM1_Init(void);
     Display_print(levelText);
   }
 
+  void drawButtonHistory(uint8_t history[], int count)
+  {
+    char letters[4] = {'R', 'G', 'B', 'Y'};
+
+    uint16_t colors[4] = {
+        BRIGHT_RED, BRIGHT_GREEN, BRIGHT_BLUE, BRIGHT_YELLOW
+    };
+
+    // Clear only the bottom-left history area
+    Display_fillRect(0, 105, 95, 23, ST77XX_BLACK);
+
+    Display_setTextSize(1, 1);
+    Display_setTextColor(ST7735_WHITE);
+    Display_setCursor(5, 105);
+    Display_print("History:");
+
+    for (int i = 0; i < count; i++)
+    {
+        int button = history[i];
+
+        char text[2] = {letters[button], '\0'};
+
+        Display_setTextColor(colors[button]);
+        Display_setTextSize(2, 2);
+        Display_setCursor(5 + i * 17, 115);
+        Display_print(text);
+    }
+  }
+
+  void addButtonHistory(uint8_t history[], int *count, int pressed)
+  {
+      if (*count < 5)
+      {
+          history[*count] = pressed;
+          (*count)++;
+      }
+      else
+      {
+          // Shift all entries left, removing the oldest
+          for (int i = 0; i < 4; i++)
+          {
+              history[i] = history[i + 1];
+          }
+
+          history[4] = pressed;
+      }
+
+      drawButtonHistory(history, *count);
+  }
+
 /* USER CODE END 0 */
 
 /**
@@ -498,6 +548,12 @@ int main(void)
           drawSimonBoard();
           drawLevel(seqLen);
 
+          // Reset history at the start of each level
+          uint8_t buttonHistory[5] = {0};
+          int historyCount = 0;
+
+          drawButtonHistory(buttonHistory, historyCount);
+
           Display_setTextColor(ST7735_WHITE);
           Display_setTextSize(1, 2);
           Display_setCursor(10, 20);
@@ -522,6 +578,9 @@ int main(void)
                   HAL_Delay(10);
                   continue;
               }
+
+              // Record the button and update the TFT history
+              addButtonHistory(buttonHistory, &historyCount, pressed);
 
               // Light LED and play corresponding note
               HAL_GPIO_WritePin(ledPort[pressed],
